@@ -1,169 +1,134 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Dimensions, Animated } from 'react-native';
-import Slider from '@react-native-community/slider';
-import { RefreshCcw, Share2, CheckCircle2, Eye, EyeOff } from 'lucide-react-native';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Whisperer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #000; color: white; font-family: sans-serif; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: white; }
+    </style>
+</head>
+<body class="flex flex-col items-center min-h-screen p-4">
 
-const { width, height } = Dimensions.get('window');
+    <div class="w-full max-w-md">
+        <div class="flex justify-between items-center py-8">
+            <span class="text-gray-500 font-bold tracking-widest text-xs">ROUND 1/5</span>
+            <button onclick="resetGame()" class="text-white">🔄</button>
+        </div>
 
-// --- HELPER: COLOR MATH ---
-const calculateColorScore = (target, guess) => {
-  // Simple Euclidean distance in HSL space, normalized to 10
-  const hDiff = Math.min(Math.abs(target.h - guess.h), 360 - Math.abs(target.h - guess.h)) / 180;
-  const sDiff = Math.abs(target.s - guess.s) / 100;
-  const lDiff = Math.abs(target.l - guess.l) / 100;
-  
-  const distance = Math.sqrt(hDiff ** 2 + sDiff ** 2 + lDiff ** 2);
-  const score = Math.max(0, 10 - (distance * 5));
-  return score.toFixed(2);
-};
+        <div id="displayArea" class="w-full h-64 rounded-xl overflow-hidden flex relative">
+            <div id="targetBox" class="flex-1 flex items-center justify-center font-black text-2xl shadow-inner"></div>
+            <div id="userBox" class="flex-1 flex items-center justify-center font-black text-2xl shadow-inner"></div>
+        </div>
 
-const getRandomHSL = () => ({
-  h: Math.floor(Math.random() * 360),
-  s: Math.floor(Math.random() * 70) + 20, // Avoid grayscale
-  l: Math.floor(Math.random() * 40) + 30, // Avoid pure black/white
-});
+        <div id="statusText" class="text-center mt-4 font-bold text-xl h-8"></div>
 
-export default function ColorWhisperer() {
-  // Game State
-  const [targetColor, setTargetColor] = useState(getRandomHSL());
-  const [userColor, setUserColor] = useState({ h: 180, s: 50, l: 50 });
-  const [gameState, setGameState] = useState('MEMORIZE'); // 'MEMORIZE', 'GUESS', 'RESULT'
-  const [countdown, setCountdown] = useState(3);
-  const [score, setScore] = useState(0);
+        <div id="controls" class="mt-8 space-y-6">
+            <div>
+                <div class="flex justify-between text-xs font-bold text-gray-500 mb-2"><span>HUE</span><span id="hVal">180</span></div>
+                <input type="range" id="hSlide" min="0" max="360" value="180" oninput="updateColor()">
+            </div>
+            <div>
+                <div class="flex justify-between text-xs font-bold text-gray-500 mb-2"><span>SATURATION</span><span id="sVal">50</span>%</div>
+                <input type="range" id="sSlide" min="0" max="100" value="50" oninput="updateColor()">
+            </div>
+            <div>
+                <div class="flex justify-between text-xs font-bold text-gray-500 mb-2"><span>LIGHTNESS</span><span id="lVal">50</span>%</div>
+                <input type="range" id="lSlide" min="0" max="100" value="50" oninput="updateColor()">
+            </div>
 
-  // Animation
-  const fadeAnim = new Animated.Value(1);
+            <button id="submitBtn" onclick="checkScore()" class="w-full bg-white text-black font-black py-4 rounded-full mt-4 active:scale-95 transition-transform">
+                SUBMIT GUESS
+            </button>
+        </div>
 
-  // --- GAME LOGIC ---
-  useEffect(() => {
-    let timer;
-    if (gameState === 'MEMORIZE' && countdown > 0) {
-      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-    } else if (gameState === 'MEMORIZE' && countdown === 0) {
-      setGameState('GUESS');
-    }
-    return () => clearTimeout(timer);
-  }, [countdown, gameState]);
+        <div id="resultArea" class="hidden text-center mt-12">
+            <h2 class="text-gray-500 font-bold">SCORE</h2>
+            <h1 id="finalScore" class="text-7xl font-black my-2">0.00</h1>
+            <p id="feedback" class="text-xl mb-8"></p>
+            <button onclick="resetGame()" class="border-2 border-white px-8 py-3 rounded-full font-bold">PLAY AGAIN</button>
+        </div>
+    </div>
 
-  const handleSubmission = () => {
-    const finalScore = calculateColorScore(targetColor, userColor);
-    setScore(finalScore);
-    setGameState('RESULT');
-  };
+    <script>
+        let target = { h: 0, s: 0, l: 0 };
+        let user = { h: 180, s: 50, l: 50 };
+        let isMemorizing = true;
 
-  const resetGame = () => {
-    setTargetColor(getRandomHSL());
-    setUserColor({ h: 180, s: 50, l: 50 });
-    setGameState('MEMORIZE');
-    setCountdown(3);
-  };
-
-  // --- RENDER HELPERS ---
-  const hslString = (c) => `hsl(${c.h}, ${c.s}%, ${c.l}%)`;
-
-  return (
-    <View style={styles.container}>
-      {/* Header Info */}
-      <View style={styles.header}>
-        <Text style={styles.roundText}>ROUND 1/5</Text>
-        <TouchableOpacity onPress={resetGame}>
-          <RefreshCcw color="#fff" size={24} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Top Half: The Comparison Area */}
-      <View style={styles.displayArea}>
-        {gameState === 'MEMORIZE' ? (
-          <View style={[styles.mainColor, { backgroundColor: hslString(targetColor) }]}>
-            <Text style={styles.statusLabel}>MEMORIZE: {countdown}s</Text>
-          </View>
-        ) : (
-          <View style={styles.splitView}>
-            {/* Target (Hidden or Revealed) */}
-            <View style={[styles.halfBox, { backgroundColor: gameState === 'RESULT' ? hslString(targetColor) : '#222' }]}>
-               {gameState === 'RESULT' ? <Text style={styles.boxLabel}>TARGET</Text> : <EyeOff color="#444" />}
-            </View>
-            {/* User Guess */}
-            <View style={[styles.halfBox, { backgroundColor: hslString(userColor) }]}>
-               <Text style={styles.boxLabel}>YOURS</Text>
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* Bottom Half: Controls */}
-      <View style={styles.controls}>
-        {gameState === 'RESULT' ? (
-          <View style={styles.resultContainer}>
-            <Text style={styles.scoreTitle}>SCORE</Text>
-            <Text style={styles.scoreValue}>{score}</Text>
-            <Text style={styles.feedback}>
-              {score > 9 ? "Color Whisperer! 🧠" : score > 7 ? "Great eye! 👀" : "Keep practicing! 🎨"}
-            </Text>
-            <TouchableOpacity style={styles.nextBtn} onPress={resetGame}>
-              <Text style={styles.nextBtnText}>PLAY AGAIN</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.sliderGroup}>
-            <ControlSlider label="HUE" value={userColor.h} max={360} onValueChange={(v) => setUserColor({...userColor, h: v})} />
-            <ControlSlider label="SATURATION" value={userColor.s} max={100} onValueChange={(v) => setUserColor({...userColor, s: v})} />
-            <ControlSlider label="LIGHTNESS" value={userColor.l} max={100} onValueChange={(v) => setUserColor({...userColor, l: v})} />
+        function resetGame() {
+            target = {
+                h: Math.floor(Math.random() * 360),
+                s: Math.floor(Math.random() * 70) + 20,
+                l: Math.floor(Math.random() * 40) + 30
+            };
+            isMemorizing = true;
+            document.getElementById('controls').classList.remove('hidden');
+            document.getElementById('resultArea').classList.add('hidden');
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('submitBtn').style.opacity = "0.3";
             
-            <TouchableOpacity 
-              disabled={gameState === 'MEMORIZE'}
-              style={[styles.submitBtn, gameState === 'MEMORIZE' && { opacity: 0.3 }]} 
-              onPress={handleSubmission}
-            >
-              <Text style={styles.submitText}>SUBMIT GUESS</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-    </View>
-  );
-}
+            // Memorize Phase
+            document.getElementById('targetBox').style.backgroundColor = `hsl(${target.h}, ${target.s}%, ${target.l}%)`;
+            document.getElementById('userBox').style.backgroundColor = `#222`;
+            document.getElementById('userBox').innerHTML = "";
+            
+            let count = 3;
+            document.getElementById('statusText').innerText = `MEMORIZE: ${count}s`;
+            
+            let timer = setInterval(() => {
+                count--;
+                if(count > 0) {
+                    document.getElementById('statusText').innerText = `MEMORIZE: ${count}s`;
+                } else {
+                    clearInterval(timer);
+                    startGuessing();
+                }
+            }, 1000);
+        }
 
-// --- SUB-COMPONENT ---
-const ControlSlider = ({ label, value, max, onValueChange }) => (
-  <View style={styles.sliderRow}>
-    <View style={styles.sliderHeader}>
-      <Text style={styles.sliderLabel}>{label}</Text>
-      <Text style={styles.sliderValue}>{Math.round(value)}</Text>
-    </View>
-    <Slider
-      minimumValue={0}
-      maximumValue={max}
-      value={value}
-      onValueChange={onValueChange}
-      minimumTrackTintColor="#fff"
-      maximumTrackTintColor="#444"
-      thumbTintColor="#fff"
-    />
-  </View>
-);
+        function startGuessing() {
+            isMemorizing = false;
+            document.getElementById('statusText').innerText = "";
+            document.getElementById('targetBox').style.backgroundColor = "#111";
+            document.getElementById('targetBox').innerHTML = "❓";
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('submitBtn').style.opacity = "1";
+            updateColor();
+        }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 25, paddingTop: 60, alignItems: 'center' },
-  roundText: { color: '#888', fontWeight: '800', fontSize: 14 },
-  displayArea: { height: height * 0.4, marginTop: 20, overflow: 'hidden' },
-  mainColor: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  splitView: { flex: 1, flexDirection: 'row' },
-  halfBox: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  statusLabel: { color: '#fff', fontSize: 32, fontWeight: '900', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 10 },
-  boxLabel: { color: '#fff', fontSize: 12, fontWeight: '900', position: 'absolute', bottom: 10 },
-  controls: { flex: 1, padding: 30 },
-  sliderRow: { marginBottom: 25 },
-  sliderHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
-  sliderLabel: { color: '#888', fontWeight: 'bold' },
-  sliderValue: { color: '#fff', fontWeight: 'bold' },
-  submitBtn: { backgroundColor: '#fff', height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
-  submitText: { color: '#000', fontWeight: '900', fontSize: 18 },
-  resultContainer: { alignItems: 'center', justifyContent: 'center', flex: 1 },
-  scoreTitle: { color: '#888', fontSize: 16, fontWeight: 'bold' },
-  scoreValue: { color: '#fff', fontSize: 80, fontWeight: '900' },
-  feedback: { color: '#fff', fontSize: 20, marginBottom: 30 },
-  nextBtn: { borderWidth: 2, borderColor: '#fff', paddingHorizontal: 40, paddingVertical: 15, borderRadius: 40 },
-  nextBtnText: { color: '#fff', fontWeight: 'bold' }
-});
+        function updateColor() {
+            if(isMemorizing) return;
+            user.h = document.getElementById('hSlide').value;
+            user.s = document.getElementById('sSlide').value;
+            user.l = document.getElementById('lSlide').value;
+            
+            document.getElementById('hVal').innerText = user.h;
+            document.getElementById('sVal').innerText = user.s;
+            document.getElementById('lVal').innerText = user.l;
+            
+            document.getElementById('userBox').style.backgroundColor = `hsl(${user.h}, ${user.s}%, ${user.l}%)`;
+            document.getElementById('userBox').innerHTML = "YOURS";
+        }
+
+        function checkScore() {
+            const hDiff = Math.min(Math.abs(target.h - user.h), 360 - Math.abs(target.h - user.h)) / 180;
+            const sDiff = Math.abs(target.s - user.s) / 100;
+            const lDiff = Math.abs(target.l - user.l) / 100;
+            const dist = Math.sqrt(hDiff**2 + sDiff**2 + lDiff**2);
+            const score = Math.max(0, 10 - (dist * 5)).toFixed(2);
+
+            document.getElementById('targetBox').style.backgroundColor = `hsl(${target.h}, ${target.s}%, ${target.l}%)`;
+            document.getElementById('targetBox').innerHTML = "TARGET";
+            document.getElementById('controls').classList.add('hidden');
+            document.getElementById('resultArea').classList.remove('hidden');
+            document.getElementById('finalScore').innerText = score;
+            document.getElementById('feedback').innerText = score > 9 ? "Color Whisperer! 🧠" : "Good effort! 🎨";
+        }
+
+        resetGame();
+    </script>
+</body>
+  </html>
+  
